@@ -139,7 +139,13 @@ class OpConverter {
                                        op_desc.Type()));
       }
       auto* output_itensor = engine->GetITensor(output_name);
-      engine->SetTensorDynamicRange(output_itensor, out_scale);
+      if (op_desc.HasAttr("groups")) {
+        // const int groups = BOOST_GET_CONST(int, op_desc.GetAttr("groups"));
+        // if(groups == 1) {
+        LOG(INFO) << "set dynamic range for " << op_desc.Type();
+        engine->SetTensorDynamicRange(output_itensor, out_scale);
+        //}
+      }
       VLOG(1) << "Set out scale = " << out_scale << " for tensor "
               << output_name << ".";
     }
@@ -176,6 +182,9 @@ class OpConverter {
           platform::errors::InvalidArgument("TensorRT engine only takes "
                                             "LoDTensor as input"));
       auto var_shape = var->GetShape();
+      LOG(INFO) << input;
+      LOG(INFO) << engine->GetRuntimeBatch();
+      for (auto s : var_shape) LOG(INFO) << s;
       if (engine->with_dynamic_shape()) {
 #if IS_TRT_VERSION_GE(6000)
         auto min_input_shape = engine->min_input_shape()[input];
@@ -203,16 +212,22 @@ class OpConverter {
                                   "optim_input_shape should be same."));
           }
         }
+        var_shape[0] = engine->GetRuntimeBatch();
         engine->DeclareInput(
             input, FluidDataType2TRT(
                        var->Proto()->type().lod_tensor().tensor().data_type()),
             Vec2TRT_Dims(input_shape, input, true));
+// Vec2TRT_Dims(var_shape, input, true));
+
 #endif
       } else {
+        // auto input_shape = engine->optim_input_shape()[input];
+        // var_shape[0] = engine->GetRuntimeBatch();
         engine->DeclareInput(
             input, FluidDataType2TRT(
                        var->Proto()->type().lod_tensor().tensor().data_type()),
             Vec2TRT_Dims(var_shape, input));
+        // Vec2TRT_Dims(input_shape, input, true));
       }
     }
     PADDLE_ENFORCE_EQ(all_dynamic_shape_set, true,

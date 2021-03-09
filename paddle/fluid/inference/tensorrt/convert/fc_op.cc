@@ -151,6 +151,7 @@ class FcOpConverter : public OpConverter {
     auto* reshape_itensor = X;
     int input_dims = X->getDimensions().nbDims;
     auto input_d = X->getDimensions().d;
+    for (int i = 0; i < input_dims; i++) LOG(INFO) << input_d[i];
     int reshape_dim3[3] = {0};
     int reshape_dim4[4] = {0};
     PADDLE_ENFORCE_EQ(
@@ -178,6 +179,7 @@ class FcOpConverter : public OpConverter {
         } else {
           reshape_dim3[i] = 1;
         }
+        LOG(INFO) << reshape_dim3[i];
       }
       nvinfer1::Dims3 reshape_dim(reshape_dim3[0], reshape_dim3[1],
                                   reshape_dim3[2]);
@@ -198,6 +200,7 @@ class FcOpConverter : public OpConverter {
         } else {
           reshape_dim4[i] = 1;
         }
+        LOG(INFO) << reshape_dim4[i];
       }
       nvinfer1::Dims4 reshape_dim(reshape_dim4[0], reshape_dim4[1],
                                   reshape_dim4[2], reshape_dim4[3]);

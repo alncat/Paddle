@@ -459,6 +459,7 @@ struct ConvBN : public PatternBase {
   PATTERN_DECL_NODE(bn_variance_out);
   PATTERN_DECL_NODE(bn_saved_mean);
   PATTERN_DECL_NODE(bn_saved_variance);
+  PATTERN_DECL_NODE(bn_reserve_space);
 };
 
 // Conv with Activation

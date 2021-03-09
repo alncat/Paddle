@@ -167,7 +167,7 @@ class BatchNormOpConverter : public OpConverter {
                         std::move(combile_bias_tensor));
     engine_->SetWeights(op_desc.Input("Scale").front(),
                         std::move(combile_scale_tensor));
-    RreplenishLayerAndOutput(layer, "pool2d", {output_name}, test_mode);
+    RreplenishLayerAndOutput(layer, "batch_norm", {output_name}, test_mode);
   }
 };
 

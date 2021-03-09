@@ -155,6 +155,8 @@ void FuseDequant(ir::Graph* graph, Scope* scope,
     Node* quantized_op_weight_node =
         subgraph.at(pattern.GetPDNode("quantized_op_weight"));
     Node* quantized_op_node = subgraph.at(pattern.GetPDNode("quantized_op"));
+    Node* quantized_op_out_node =
+        subgraph.at(pattern.GetPDNode("quantized_op_out"));
     Node* dequant_op_node = subgraph.at(pattern.GetPDNode("dequant_op"));
     Node* dequant_op_out_node =
         subgraph.at(pattern.GetPDNode("dequant_op_out"));
@@ -239,8 +241,13 @@ void FuseDequant(ir::Graph* graph, Scope* scope,
               "conv2d op requires weight scale size = channel size of the "
               "weight, which is %d, but got %d.",
               static_cast<size_t>(w_dims[0]), weight_scale.size()));
+      LOG(INFO) << quantized_op_type << " " << w_dims[1] << " " << w_dims[2]
+                << " " << w_dims[3] << " "
+                << weight_tensor->numel() / w_dims[1] / w_dims[2] / w_dims[3];
       for (int j = 0; j < weight_tensor->numel(); j++) {
         int inner_size = w_dims[1] * w_dims[2] * w_dims[3];
+        // if(j % inner_size == 0) LOG(INFO) << weight_scale[j/inner_size];
+        // LOG(INFO) << quantized_weight_data[j] ;
         quantized_weight_data[j] *= weight_scale[j / inner_size];
       }
     } else if (quantized_op_type == "conv2d_transpose") {
@@ -294,6 +301,7 @@ void FuseDequant(ir::Graph* graph, Scope* scope,
     // Delete nodes and edges
     nodes2rm.insert(quantized_op_node);
     nodes2rm.insert(dequant_op_node);
+    nodes2rm.insert(quantized_op_out_node);
     GraphSafeRemoveNodes(graph, nodes2rm);
   };
   gpd(graph, handler);

@@ -344,10 +344,10 @@ void AnalysisConfig::Update() {
   if (use_tensorrt_) {
     pass_builder()->ClearPasses();
     for (const auto &pass : kTRTSubgraphPasses) {
-      if (tensorrt_precision_mode_ == AnalysisConfig::Precision::kInt8 &&
-          (pass == "conv_bn_fuse_pass")) {
-        continue;
-      }
+      // if (tensorrt_precision_mode_ == AnalysisConfig::Precision::kInt8 &&
+      //    (pass == "conv_bn_fuse_pass")) {
+      //  continue;
+      //}
       pass_builder()->AppendPass(pass);
     }
   }

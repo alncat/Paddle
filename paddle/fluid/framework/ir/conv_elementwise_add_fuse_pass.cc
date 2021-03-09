@@ -39,7 +39,7 @@ void ConvElementwiseAddFusePass::ApplyImpl(ir::Graph* graph) const {
   GraphPatternDetector gpd;
   auto* x = gpd.mutable_pattern()
                 ->NewNode("x")
-                ->assert_is_op_input("conv2d", "Input")
+                ->assert_is_ops_input({"conv2d", "depthwise_conv2d"}, "Input")
                 ->AsInput();
 
   patterns::ConvElementwiseadd pattern(gpd.mutable_pattern(), pattern_name);
@@ -103,4 +103,5 @@ REGISTER_PASS_CAPABILITY(conv_elementwise_add_fuse_pass)
     .AddCombination(
         paddle::framework::compatible::OpVersionComparatorCombination()
             .LE("conv2d", 1)
+            .LE("depthwise_conv2d", 1)
             .EQ("elementwise_add", 0));

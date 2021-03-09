@@ -85,6 +85,8 @@ const std::vector<std::string> kTRTSubgraphPasses({
       "skip_layernorm_fuse_pass",               //
       "unsqueeze2_eltwise_fuse_pass",           //
       "conv_bn_fuse_pass",                      //
+      "conv_transpose_bn_fuse_pass",            //
+      "depthwise_conv_bn_fuse_pass",            //
       "squeeze2_matmul_fuse_pass",              //
       "reshape2_matmul_fuse_pass",              //
       "flatten2_matmul_fuse_pass",              //
@@ -93,6 +95,7 @@ const std::vector<std::string> kTRTSubgraphPasses({
       "conv_elementwise_add_fuse_pass",         //
       "tensorrt_subgraph_pass",                 //
       "conv_bn_fuse_pass",                      //
+      "depthwise_conv_bn_fuse_pass,"            //
 #if CUDNN_VERSION >= 7100  // To run conv_fusion, the version of cudnn must be
                            // guaranteed at least v7
       "conv_elementwise_add_act_fuse_pass",   //

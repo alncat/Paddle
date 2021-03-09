@@ -77,6 +77,9 @@ class NaiveLogger : public nvinfer1::ILogger {
       case Severity::kERROR:
         LOG(ERROR) << msg;
         break;
+      case Severity::kVERBOSE:
+        std::cout << msg << std::endl;
+        break;
       default:
         break;
     }

@@ -800,46 +800,53 @@ PDNode *patterns::ConvBN::operator()(paddle::framework::ir::PDNode *conv_input,
   auto *bn_scale_var = pattern->NewNode(bn_scale_repr())
                            ->AsInput()
                            ->assert_is_persistable_var()
-                           ->assert_is_op_input("batch_norm", "Scale");
+                           ->assert_is_op_input("batch_norm", "Scale")
+                           ->assert_has_n_inputs(0);
   // BN Bias
   auto *bn_bias_var = pattern->NewNode(bn_bias_repr())
                           ->AsInput()
                           ->assert_is_persistable_var()
-                          ->assert_is_op_input("batch_norm", "Bias");
+                          ->assert_is_op_input("batch_norm", "Bias")
+                          ->assert_has_n_inputs(0);
   // BN Mean
   auto *bn_mean_var = pattern->NewNode(bn_mean_repr())
                           ->AsInput()
                           ->assert_is_persistable_var()
-                          ->assert_is_op_input("batch_norm", "Mean");
+                          ->assert_is_op_input("batch_norm", "Mean")
+                          ->assert_has_n_inputs(0);
   // BN Variance
   auto *bn_variance_var = pattern->NewNode(bn_variance_repr())
                               ->AsInput()
                               ->assert_is_persistable_var()
-                              ->assert_is_op_input("batch_norm", "Variance");
+                              ->assert_is_op_input("batch_norm", "Variance")
+                              ->assert_has_n_inputs(0);
 
   // BN output
   auto *bn_out_var = pattern->NewNode(bn_out_repr())
                          ->AsOutput()
-                         ->assert_is_op_output("batch_norm");
+                         ->assert_is_op_output("batch_norm", "Y");
 
   auto *bn_mean_out_var = pattern->NewNode(bn_mean_out_repr())
                               ->AsOutput()
-                              ->assert_is_op_output("batch_norm", "MeanOut");
+                              ->assert_is_op_output("batch_norm", "MeanOut")
+                              ->assert_has_n_outputs(0);
 
   auto *bn_variance_out_var =
       pattern->NewNode(bn_variance_out_repr())
           ->AsOutput()
-          ->assert_is_op_output("batch_norm", "VarianceOut");
+          ->assert_is_op_output("batch_norm", "VarianceOut")
+          ->assert_has_n_outputs(0);
 
-  auto *bn_saved_mean_var =
-      pattern->NewNode(bn_saved_mean_repr())
-          ->AsOutput()
-          ->assert_is_op_output("batch_norm", "SavedMean");
+  auto *bn_saved_mean_var = pattern->NewNode(bn_saved_mean_repr())
+                                ->AsOutput()
+                                ->assert_is_op_output("batch_norm", "SavedMean")
+                                ->assert_has_n_outputs(0);
 
   auto *bn_saved_variance_var =
       pattern->NewNode(bn_saved_variance_repr())
           ->AsOutput()
-          ->assert_is_op_output("batch_norm", "SavedVariance");
+          ->assert_is_op_output("batch_norm", "SavedVariance")
+          ->assert_has_n_outputs(0);
 
   conv_op->LinksFrom({conv_input, conv_weight_var}).LinksTo({conv_out_var});
 
@@ -2005,14 +2012,16 @@ PDNode *patterns::ConvElementwiseadd2Act::operator()(PDNode *conv_in) {
 
 PDNode *patterns::ConvElementwiseadd::operator()(PDNode *conv_in) {
   conv_in->AsInput();
-  auto conv_op = pattern->NewNode(conv_op_repr())->assert_is_op("conv2d");
+  auto conv_op = pattern->NewNode(conv_op_repr())
+                     ->assert_is_ops({"conv2d", "depthwise_conv2d"});
   auto conv_out = pattern->NewNode(conv_out_repr())
-                      ->assert_is_op_output("conv2d")
+                      ->assert_is_ops_output({"conv2d", "depthwise_conv2d"})
                       ->assert_is_op_input("elementwise_add", "X")
                       ->AsIntermediate();
-  auto conv_filter = pattern->NewNode(conv_filter_repr())
-                         ->assert_is_op_input("conv2d", "Filter")
-                         ->AsInput();
+  auto conv_filter =
+      pattern->NewNode(conv_filter_repr())
+          ->assert_is_ops_input({"conv2d", "depthwise_conv2d"}, "Filter")
+          ->AsInput();
   auto elementwise_add_op = pattern->NewNode(elementwise_add_op_repr())
                                 ->assert_is_op("elementwise_add");
   auto elementwise_add_in_y = pattern->NewNode(elementwise_add_in_y_repr())

@@ -14,6 +14,7 @@
 
 #include "paddle/fluid/framework/ir/delete_quant_dequant_filter_op_pass.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -75,6 +76,12 @@ void DeleteQuantDequantFilterOpPass::ApplyImpl(ir::Graph* graph) const {
     any_op2_desc->Flush();
     auto dequant_type = quant_dequant_op->Op()->Type();
     auto quantized_op_type = any_op2_desc->Type();
+    // get weight tensor
+    auto* weight_tensor =
+        scope->GetVar(quant_dequant_op_x->Name())->GetMutable<LoDTensor>();
+    auto w_dims = weight_tensor->dims();
+    float* quantized_weight_data =
+        weight_tensor->mutable_data<float>(platform::CPUPlace());
 
     // Get weight scale
     if (dequant_type == "fake_channel_wise_quantize_dequantize_abs_max") {
@@ -92,24 +99,33 @@ void DeleteQuantDequantFilterOpPass::ApplyImpl(ir::Graph* graph) const {
               "Channel scale tensor's place should be CPU."));
       const float* channel_scale_data = channel_scale_tensor.data<float>();
       for (int i = 0; i < channel_scale_tensor.numel(); i++) {
+        PADDLE_ENFORCE_NE(channel_scale_data[i], 0,
+                          platform::errors::InvalidArgument(
+                              "Weight scale should be nonzero, but get zero."));
         weight_scale.push_back(range / channel_scale_data[i]);
       }
     } else {
       auto scale_name = quant_dequant_op_outscale->Name();
       const LoDTensor& scale_tensor =
           scope->GetVar(scale_name)->Get<LoDTensor>();
-      const float* scale_data = scale_tensor.data<float>();
+      float* scale_data = const_cast<float*>(scale_tensor.data<float>());
+      // compute the abs max of the weight tensor
+      float abs_max_weight = 0.;
+      for (int j = 0; j < weight_tensor->numel(); j++) {
+        abs_max_weight =
+            std::max(abs_max_weight, std::abs(quantized_weight_data[j]));
+      }
+      scale_data[0] = abs_max_weight;
+      PADDLE_ENFORCE_NE(scale_data[0], 0,
+                        platform::errors::InvalidArgument(
+                            "Weight scale should be nonzero, but get zero"));
       weight_scale.push_back((range * range) / scale_data[0] / range);
     }
 
     nodes2rm.insert(quant_dequant_op_outscale);
+
     // perform quantize dequantize operations
-    auto* weight_tensor =
-        scope->GetVar(quant_dequant_op_x->Name())->GetMutable<LoDTensor>();
-    auto w_dims = weight_tensor->dims();
-    float* quantized_weight_data =
-        weight_tensor->mutable_data<float>(platform::CPUPlace());
-    // If quantized op is fc, weight scale size = 1;
+    // If quantized op is not channel wise, weight scale size = 1;
     // If quantized op is conv2d, weight scale size = weight dims[0]
     // If quantized op is conv2d_transpose, weight scale size = weight dims[1]
     if (dequant_type == "fake_quantize_dequantize_abs_max") {
@@ -119,9 +135,6 @@ void DeleteQuantDequantFilterOpPass::ApplyImpl(ir::Graph* graph) const {
               "%s op weight dequantized by [fake_quantize_dequantize_max_abs] "
               "requires weight scale size = 1, but got %d.",
               quantized_op_type, weight_scale.size()));
-      PADDLE_ENFORCE_NE(weight_scale[0], 0,
-                        platform::errors::InvalidArgument(
-                            "Weight scale should be nonzero, but get zero"));
       for (int j = 0; j < weight_tensor->numel(); j++) {
         // quantized
         quantized_weight_data[j] = quantized_weight_data[j] * weight_scale[0];

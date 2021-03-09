@@ -38,14 +38,18 @@ void TensorRTEngine::InitNetwork() {
   if (with_dynamic_shape_) {
 #if IS_TRT_VERSION_GE(6000)
     infer_networkv2_.reset(infer_builder_->createNetworkV2(
-        1U << static_cast<int>(
+        1U << static_cast<uint32_t>(
             nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
     infer_builder_config_.reset(infer_builder_->createBuilderConfig());
     infer_ptr<nvinfer1::IBuilderConfig> infer_builder_config_;
     optim_profile_ = infer_builder_->createOptimizationProfile();
 #endif
   } else {
+    infer_builder_config_.reset(infer_builder_->createBuilderConfig());
+    infer_ptr<nvinfer1::IBuilderConfig> infer_builder_config_;
     infer_network_.reset(infer_builder_->createNetwork());
+    // 1U << static_cast<uint32_t>(
+    //    nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
   }
 }
 
@@ -55,6 +59,7 @@ void TensorRTEngine::Execute(int batch_size, std::vector<void *> *buffers,
   auto infer_context = context();
   if (!with_dynamic_shape()) {
     infer_context->enqueue(batch_size, buffers->data(), stream, nullptr);
+    // infer_context->enqueueV2(buffers->data(), stream, nullptr);
   } else {
 #if IS_TRT_VERSION_GE(6000)
     infer_context->enqueueV2(buffers->data(), stream, nullptr);
@@ -104,7 +109,7 @@ void TensorRTEngine::FreezeNetwork() {
       infer_builder_->setInt8Calibrator(nullptr);
 
 #if IS_TRT_VERSION_GE(5000)
-      infer_builder_->setStrictTypeConstraints(true);
+      // infer_builder_->setStrictTypeConstraints(true);
       for (auto &quant_range : quant_dynamic_range_) {
         auto tensor = quant_range.first;
         float range = quant_range.second;
@@ -213,7 +218,25 @@ void TensorRTEngine::FreezeNetwork() {
         *network(), *infer_builder_config_));
 #endif
   } else {
-    infer_engine_.reset(infer_builder_->buildCudaEngine(*network()));
+    // for (auto &input : optim_input_shape_) {
+    //  network()->addInput(
+    //      input.first.c_str(), nvinfer1::DataType::kFLOAT,
+    //      Vec2TRT_Dims(optim_input_shape_[input.first], input.first, true));
+    //}
+    infer_builder_config_->setMaxWorkspaceSize(max_workspace_);
+    if (enable_int8) {
+      // Due to a bug of TRT, we must set precision BuilderFlag to kFP16 before
+      // kINT8 here to perform INT8 inference.
+      infer_builder_config_->setFlag(nvinfer1::BuilderFlag::kFP16);
+      infer_builder_config_->setFlag(nvinfer1::BuilderFlag::kINT8);
+      // infer_builder_config_->setFlag(nvinfer1::BuilderFlag::kSTRICT_TYPES);
+    }
+    if (WithFp16()) {
+      infer_builder_config_->setFlag(nvinfer1::BuilderFlag::kFP16);
+    }
+    infer_engine_.reset(infer_builder_->buildEngineWithConfig(
+        *network(), *infer_builder_config_));
+    // infer_engine_.reset(infer_builder_->buildCudaEngine(*network()));
   }
   PADDLE_ENFORCE_NOT_NULL(
       infer_engine_, platform::errors::Fatal(

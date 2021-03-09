@@ -57,6 +57,11 @@ void ConvertConv2d(TensorRTEngine* engine, const framework::proto::OpDesc& op,
   auto* Y_t = Y_v->GetMutable<framework::LoDTensor>();
   float* weight_data = nullptr;
   bool enable_int8 = op_desc.HasAttr("enable_int8");
+  if (op_desc.HasAttr("Input_scale")) {
+    float in_scale =
+        BOOST_GET_CONST(float, op_desc.GetAttr("Input_scale")) * 127;
+    LOG(INFO) << "in_scale: " << in_scale;
+  }
 
   if (enable_int8) {
 #if IS_TRT_VERSION_GE(5000)
@@ -73,7 +78,11 @@ void ConvertConv2d(TensorRTEngine* engine, const framework::proto::OpDesc& op,
         BOOST_GET_CONST(std::vector<float>, op_desc.GetAttr("weight_scale"));
     weight_data = engine->GetWeightCPUData(op_desc.Input("Filter").front(), Y_t,
                                            true, weight_scale);
+    // const int groups = BOOST_GET_CONST(int, op_desc.GetAttr("groups"));
+    // if(groups <= 128) {
+    LOG(INFO) << "set dynamic range for " << op_desc.Type();
     engine->SetTensorDynamicRange(X, in_scale);
+//}
 #endif
   } else {
     weight_data =
@@ -124,6 +133,7 @@ void ConvertConv2d(TensorRTEngine* engine, const framework::proto::OpDesc& op,
                                                   " layer error."));
   layer->setStride(nv_strides);
   layer->setPadding(nv_paddings);
+  LOG(INFO) << "groups: " << groups;
   layer->setNbGroups(groups);
   // set dilations
   fset_dilation(layer, nv_dilations);

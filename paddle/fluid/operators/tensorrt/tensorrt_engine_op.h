@@ -246,6 +246,8 @@ class TensorRTEngineOp : public framework::OperatorBase {
           inference::analysis::GetFromScope<framework::LoDTensor>(scope, x);
       auto t_shape = framework::vectorize<int64_t>(t.dims());
       runtime_batch = t_shape[0];
+      // LOG(INFO) << x;
+      // for(auto t: t_shape) LOG(INFO) << t;
       const int bind_index = engine->engine()->getBindingIndex(x.c_str());
       PADDLE_ENFORCE_LT(
           bind_index, num_bindings,

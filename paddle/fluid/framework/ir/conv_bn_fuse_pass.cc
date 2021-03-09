@@ -14,6 +14,7 @@
 
 #include "paddle/fluid/framework/ir/conv_bn_fuse_pass.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -191,6 +192,24 @@ void ConvBNFusePass::ApplyImpl(ir::Graph* graph) const {
     recompute_bias_and_weights(scope, conv_weight, *bn_scale, *bn_bias_tensor,
                                *bn_mean, *bn_variance, eltwise_y_in_tensor,
                                epsilon, conv_type());
+    // update conv2d out_threshold if it is quantized
+    if (conv->Op()->HasAttr("out_threshold") &&
+        batch_norm->Op()->HasAttr("out_threshold")) {
+      float conv_out_threshold =
+          BOOST_GET_CONST(float, conv->Op()->GetAttr("out_threshold"));
+      float bn_out_threshold =
+          BOOST_GET_CONST(float, batch_norm->Op()->GetAttr("out_threshold"));
+      LOG(INFO) << "bn_out_threshold: " << bn_out_threshold;
+      // compute max of the bias tensor
+      float max_bias = 0.;
+      float* eltwise_y_in_tensor_data =
+          eltwise_y_in_tensor->mutable_data<float>(platform::CPUPlace());
+      for (int i = 0; i < eltwise_y_in_tensor->numel(); i++) {
+        max_bias = std::max(max_bias, std::fabs(eltwise_y_in_tensor_data[i]));
+      }
+      conv_out_threshold = bn_out_threshold - max_bias;
+      conv->Op()->SetAttr("out_threshold", conv_out_threshold);
+    }
 
     // with MKL-DNN fuse conv+bn into conv with bias
     // without MKL-DNN fuse conv+bn into conv+elementwise_add
@@ -224,6 +243,11 @@ void ConvBNFusePass::ApplyImpl(ir::Graph* graph) const {
       }
       conv->Op()->SetOutput("Output",
                             std::vector<std::string>({bn_out->Name()}));
+      if (batch_norm->Op()->HasAttr("out_threshold")) {
+        float bn_out_threshold =
+            BOOST_GET_CONST(float, batch_norm->Op()->GetAttr("out_threshold"));
+        conv->Op()->SetAttr("out_threshold", bn_out_threshold);
+      }
       GraphSafeRemoveNodes(
           graph,
           {conv_out, bn_scale, bn_bias, bn_mean, bn_variance, batch_norm,
@@ -239,6 +263,11 @@ void ConvBNFusePass::ApplyImpl(ir::Graph* graph) const {
       desc.SetOutput("Out", std::vector<std::string>({bn_out->Name()}));
       desc.SetType("elementwise_add");
       desc.SetAttr("axis", 1);
+      if (batch_norm->Op()->HasAttr("out_threshold")) {
+        float bn_out_threshold =
+            BOOST_GET_CONST(float, batch_norm->Op()->GetAttr("out_threshold"));
+        desc.SetAttr("out_threshold", bn_out_threshold);
+      }
       auto eltwise_op = g->CreateOpNode(&desc);  // OpDesc will be copied.
 
       GraphSafeRemoveNodes(graph, {bn_scale, bn_bias, bn_mean, bn_variance,
